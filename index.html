@@ -1,0 +1,275 @@
+<!--
+Copyright (c) 2004-2021, Lode Vandevenne
+
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
+
+    * Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
+    * Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer in the documentation and/or other materials provided with the distribution.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR
+CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+-->
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Ray Casting JS | Vector Based</title>
+    <style type="text/css">
+        body {
+            padding: 0;
+            margin: 0;
+            
+        }
+        #gameplay {
+            background: black;
+            display: block;
+            margin: 100px auto;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="gameplay" width="640" height="480"></canvas>
+</body>
+</html>
+
+<script type="text/javascript">
+
+    var pressedKeys = {};
+    window.onkeyup = function(e) { pressedKeys[e.keyCode] = false; }
+    window.onkeydown = function(e) { pressedKeys[e.keyCode] = true; }
+
+    const screenWidth  = 640;
+    const screenHeight = 480;
+    const mapWidth = 24;
+    const mapHeight = 24;
+
+    let worldMap = [
+        [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+        [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+        [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+        [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+        [1,0,0,0,0,0,2,2,2,2,2,0,0,0,0,3,0,3,0,3,0,0,0,1],
+        [1,0,0,0,0,0,2,0,0,0,2,0,0,0,0,0,0,0,0,0,0,0,0,1],
+        [1,0,0,0,0,0,2,0,0,0,2,0,0,0,0,3,0,0,0,3,0,0,0,1],
+        [1,0,0,0,0,0,2,0,0,0,2,0,0,0,0,0,0,0,0,0,0,0,0,1],
+        [1,0,0,0,0,0,2,2,0,2,2,0,0,0,0,3,0,3,0,3,0,0,0,1],
+        [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+        [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+        [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+        [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+        [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+        [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+        [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+        [1,4,4,4,4,4,4,4,4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+        [1,4,0,4,0,0,0,0,4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+        [1,4,0,0,0,0,5,0,4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+        [1,4,0,4,0,0,0,0,4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+        [1,4,0,4,4,4,4,4,4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+        [1,4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+        [1,4,4,4,4,4,4,4,4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+        [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+    ];
+
+
+    let posX = 22;
+    let posY = 12;  //x and y start position
+    let dirX = -1;
+    let dirY = 0;  //initial direction vector
+    let planeX = 0;
+    let planeY = 0.66; //the 2d raycaster version of camera plane
+
+    var canvas = document.getElementById('gameplay');
+    if (canvas.getContext) 
+    {
+        var context = canvas.getContext('2d');
+    }
+
+    function getColor(_color) {
+        let color;
+        switch(_color)
+        {
+            case 1:  color = '#800'; break; /* Dark Red */
+            case 2:  color = '#f00'; break; /* Red */
+            case 3:  color = '#080'; break; /* Dark Green */
+            case 4:  color = '#0f0'; break; /* Green */
+            case 5:  color = '#008'; break; /* Dark Blue */
+            case 6:  color = '#00f'; break; /* Blue */
+            case 7:  color = '#888'; break; /* Grey */
+            case 8:  color = '#fff'; break; /* White */
+            case 9:  color = '#880'; break; /* Dark Yellow */
+            case 10: color = '#ff0'; break; /* Yellow */
+            default: color = '#fff'; break; /* White */
+        }
+        return color;
+    }
+
+    function drawLine(ctx, begin, end, stroke = 'black', width = 1) {
+        if (stroke) {
+            ctx.strokeStyle = stroke;
+        }
+
+        if (width) {
+            ctx.lineWidth = width;
+        }
+
+        ctx.beginPath();
+        ctx.moveTo(...begin);
+        ctx.lineTo(...end);
+        ctx.stroke();
+    }
+
+    function onNewFrame(fElapsedTime) {
+
+        /* Clear Screen */
+        context.clearRect(0, 0, canvas.width, canvas.height);
+
+        let w = screenWidth;
+        let h = screenHeight;
+
+        /* Draw Rays from left to right depending on player angle and distance to walls */
+        for (let x = 0; x < w; x++) {
+            //calculate ray position and direction
+            let cameraX = 2 * x / w - 1; //x-coordinate in camera space
+            let rayDirX = dirX + planeX * cameraX;
+            let rayDirY = dirY + planeY * cameraX;
+            //which box of the map we're in
+            let mapX = Math.floor(posX);
+            let mapY = Math.floor(posY);
+
+            //length of ray from current position to next x or y-side
+            let sideDistX;
+            let sideDistY;
+
+            //length of ray from one x or y-side to next x or y-side
+            let deltaDistX = (rayDirX == 0) ? 1e30 : Math.abs(1 / rayDirX);
+            let deltaDistY = (rayDirY == 0) ? 1e30 : Math.abs(1 / rayDirY);
+            let perpWallDist;
+
+            //what direction to step in x or y-direction (either +1 or -1)
+            let stepX;
+            let stepY;
+
+            let hit = 0; //was there a wall hit?
+            let side; //was a NS or a EW wall hit?
+            //calculate step and initial sideDist
+            if(rayDirX < 0)
+            {
+                stepX = -1;
+                sideDistX = (posX - mapX) * deltaDistX;
+            }
+            else
+            {
+                stepX = 1;
+                sideDistX = (mapX + 1.0 - posX) * deltaDistX;
+            }
+            if(rayDirY < 0)
+            {
+                stepY = -1;
+                sideDistY = (posY - mapY) * deltaDistY;
+            }
+            else
+            {
+                stepY = 1;
+                sideDistY = (mapY + 1.0 - posY) * deltaDistY;
+            }
+            //perform DDA
+            while(hit == 0)
+            {
+                //jump to next map square, either in x-direction, or in y-direction
+                if(sideDistX < sideDistY)
+                {
+                    sideDistX += deltaDistX;
+                    mapX += stepX;
+                    side = 0;
+                }
+                else
+                {
+                    sideDistY += deltaDistY;
+                    mapY += stepY;
+                    side = 1;
+                }
+                //Check if ray has hit a wall
+                if(worldMap[mapX][mapY] > 0) hit = 1;
+            }
+            //Calculate distance projected on camera direction. This is the shortest distance from the point where the wall is
+            //hit to the camera plane.
+            if(side == 0) { perpWallDist = (sideDistX - deltaDistX) }
+            else          { perpWallDist = (sideDistY - deltaDistY) };
+
+            //Calculate height of line to draw on screen
+            let lineHeight = Math.floor(h / perpWallDist);
+
+            //calculate lowest and highest pixel to fill in current stripe
+            let drawStart = Math.floor(-lineHeight / 2 + h / 2);
+            if (drawStart < 0) { drawStart = 0 };
+            let drawEnd = Math.floor(lineHeight / 2 + h / 2);
+            if (drawEnd >= h) { drawEnd = h - 1 };
+
+            //choose wall color
+            let color = getColor(worldMap[mapX][mapY] * 2);
+
+            //give x and y sides different brightness
+            if (side == 1) { color = getColor(worldMap[mapX][mapY] * 2 - 1) }
+
+            /* Draw Ray */
+            drawLine(context, [x, drawStart], [x, drawEnd], color, 1);
+
+        }
+
+        /* Change player position depending on WASD input */
+        let moveSpeed = fElapsedTime * 5.0; //the constant value is in squares/second
+        let rotSpeed = fElapsedTime * 3.0;  //the constant value is in radians/second
+
+        /* W */
+        if (pressedKeys["87"]) {
+            if (worldMap[Math.floor(posX + dirX * moveSpeed)][Math.floor(posY)] == false) { posX += dirX * moveSpeed };
+            if (worldMap[Math.floor(posX)][Math.floor(posY + dirY * moveSpeed)] == false) { posY += dirY * moveSpeed };
+        }
+
+        /* S */
+        if (pressedKeys["83"]) {
+            if (worldMap[Math.floor(posX - dirX * moveSpeed)][Math.floor(posY)] == false) { posX -= dirX * moveSpeed };
+            if (worldMap[Math.floor(posX)][Math.floor(posY - dirY * moveSpeed)] == false) { posY -= dirY * moveSpeed };
+        }
+
+        /* A */
+        if (pressedKeys["65"]) {
+            //both camera direction and camera plane must be rotated
+            let oldDirX = dirX;
+            dirX = dirX * Math.cos(rotSpeed) - dirY * Math.sin(rotSpeed);
+            dirY = oldDirX * Math.sin(rotSpeed) + dirY * Math.cos(rotSpeed);
+            let oldPlaneX = planeX;
+            planeX = planeX * Math.cos(rotSpeed) - planeY * Math.sin(rotSpeed);
+            planeY = oldPlaneX * Math.sin(rotSpeed) + planeY * Math.cos(rotSpeed);
+        }
+
+        /* D */
+        if (pressedKeys["68"]) {
+            //both camera direction and camera plane must be rotated
+            let oldDirX = dirX;
+            dirX = dirX * Math.cos(-rotSpeed) - dirY * Math.sin(-rotSpeed);
+            dirY = oldDirX * Math.sin(-rotSpeed) + dirY * Math.cos(-rotSpeed);
+            let oldPlaneX = planeX;
+            planeX = planeX * Math.cos(-rotSpeed) - planeY * Math.sin(-rotSpeed);
+            planeY = oldPlaneX * Math.sin(-rotSpeed) + planeY * Math.cos(-rotSpeed);
+        }
+    }
+
+    document.addEventListener("DOMContentLoaded", function(event) {
+        let FPS = 60;
+        let interval = 1 / FPS;
+        setInterval(function() {
+            onNewFrame(interval)
+        }, interval * 1000)
+    })
+</script>
