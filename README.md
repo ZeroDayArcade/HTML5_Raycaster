@@ -33,12 +33,16 @@ Floors and Ceilings: https://lodev.org/cgtutor/raycasting2.html
 ## Sprites, Items, and Enemies
 Sprites representing items and enemies can easily be added as well. Items/weapons can often be rendered as a simple overlay after walls have been rendered. For some really nice Wolfenstein-style sprites to play around with, checkout these sprites from a GZDoom mod by user itsmeveronica: https://www.moddb.com/mods/volkograd-3d/images/makarov-reload-animation#imagebox. You can right-click and save the images, and then load them into the canvas. For details on code implementation, see this tutorial: https://lodev.org/cgtutor/raycasting3.html 
 
-![rc5](https://github.com/ZeroDayArcade/HTML5_Raycaster/assets/141867962/550d1030-d47a-46fc-b103-7730b1febf88)
-![rc6](https://github.com/ZeroDayArcade/HTML5_Raycaster/assets/141867962/a5bf1123-9733-483d-b787-ff1589c6b9d9)
+<img width="520" alt="rc4" src="https://github.com/ZeroDayArcade/HTML5_Raycaster/assets/141867962/550d1030-d47a-46fc-b103-7730b1febf88"><img width="280" alt="rc4" src="https://github.com/ZeroDayArcade/HTML5_Raycaster/assets/141867962/a5bf1123-9733-483d-b787-ff1589c6b9d9">
 
 
 ## Full 3D Graphics
 
-Raycasters use a semi-3D graphics technique that takes advantage of the fact that there is no vertical movement or angling to greatly simplify the math and allow for level and game design strategies similar to 2D games while producing 3D looking graphics.<br/><br/>It is also possible to build full 3D graphics engines in JavaScript using software rendering where you explicitly dictate the value of each pixel in the JavaScript code. And of course you can create more advanced and modern 3D graphics in HTML5 games if you use WebGL and GPU-accelerated 3D rendering. For a very simple example of 3D software rendering in JavaScript, see this <a href="https://zerodayarcade.com/demos/3d-wireframe">Wireframe Demo</a> (and the <a href="https://github.com/ZeroDayArcade/HTML5_3D-Wireframe-Cube">Code</a>) which draws SVG polygons to the DOM to produce a 3D cube.
+Raycasters use a semi-3D graphics technique that takes advantage of the fact that there is no vertical movement or angling to greatly simplify the math and allow for level and game design strategies similar to 2D games while producing 3D looking graphics.<br/><br/>It is also possible to build full 3D graphics engines in JavaScript using software rendering where you explicitly calculate the 3D transformations and 3D&rarr;2D projections in the JavaScript code.
+<p align="center">
+<img width="618" alt="wcube" src="https://github.com/ZeroDayArcade/HTML5_Raycaster/assets/141867962/293f886e-13dd-4c80-b29a-740d4176d812">
+</p>
+
+Of course, you can always create more advanced and modern graphics by using GPU-accelerated 3D rendering as many HTML5 3D libraries do. But spending some time to learn how 3D graphics work with software rendering can improve your understanding and allow you to create 3D scenes and games on systems that have no native 3D hardware. For a very simple example of 3D software rendering in JavaScript, see this <a href="https://zerodayarcade.com/demos/3d-wireframe">Wireframe Demo</a> (and the <a href="https://github.com/ZeroDayArcade/HTML5_3D-Wireframe-Cube">Code</a>) which draws SVG polygons to the DOM to produce a rotating 3D cube.
 
 ### See the <a href="https://zerodayarcade.com/demos/raycaster">Live Raycasting Demo</a>
