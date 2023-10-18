@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Ray Casting JS | Debugging</title>
+    <style type="text/css">
+        #gameplay {
+            background: black;
+            display: inline-block;
+            margin:120px auto;
+            position:relative;
+        }
+        #tracker {
+            background: black;
+            display: inline-block;
+            margin:120px auto;
+            position:relative;
+        }
+        .canvas-container {
+            width:1130px; margin: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="canvas-container">
+        <canvas id="tracker" width="480" height="480"></canvas>
+        <canvas id="gameplay" width="640" height="480"></canvas>
+    </div>
+</body>
+</html>
+
+<script type="text/javascript">
+
+    var pressedKeys = {};
+    window.onkeyup = function(e) { pressedKeys[e.keyCode] = false; }
+    window.onkeydown = function(e) { pressedKeys[e.keyCode] = true; }
+
+    /* Map set to same as vector based demo for comparison */
+    const screenWidth  = 640;
+    const screenHeight = 480;
+    const mapWidth = 24;
+    const mapHeight = 24;
+
+    /* Tracking Screen */
+    const tScreenWidth = 480;
+    const tScreenHeight = 480;
+
+    /* Number of pixels for each map square on tracking screen */
+    const tSegmentSize = tScreenWidth/mapWidth;
+
+    let worldMap = [
+        [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+        [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+        [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1], 
+        [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+        [1,0,0,0,0,0,2,2,2,2,2,0,0,0,0,3,0,3,0,3,0,0,0,1],
+        [1,0,0,0,0,0,2,0,0,0,2,0,0,0,0,0,0,0,0,0,0,0,0,1],
+        [1,0,0,0,0,0,2,0,0,0,2,0,0,0,0,3,0,0,0,3,0,0,0,1],
+        [1,0,0,0,0,0,2,0,0,0,2,0,0,0,0,0,0,0,0,0,0,0,0,1],
+        [1,0,0,0,0,0,2,2,0,2,2,0,0,0,0,3,0,3,0,3,0,0,0,1],
+        [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+        [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+        [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+        [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+        [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+        [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+        [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+        [1,4,4,4,4,4,4,4,4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+        [1,4,0,4,0,0,0,0,4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+        [1,4,0,0,0,0,5,0,4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+        [1,4,0,4,0,0,0,0,4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+        [1,4,0,4,4,4,4,4,4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+        [1,4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+        [1,4,4,4,4,4,4,4,4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+        [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+    ];
+
+    /* Flip coordinates so array layout matches visual overhead layout */
+    output = worldMap[0].map((_, colIndex) => worldMap.map(row => row[colIndex]));
+    worldMap = output;
+
+    let posX = 12; /* Player starting position */
+    let posY = 22;  
+
+    let fov = 2 * Math.PI * 66.8 / 360; /* Field of View */
+    let playerAngle = 3 * Math.PI / 2;  /* "Up" in worldMap */
+
+    var canvas = document.getElementById('gameplay');
+    let tracking_canvas = document.getElementById('tracker');
+    
+    // Get canvas context
+    if (canvas.getContext) var context = canvas.getContext('2d');
+    if (tracking_canvas.getContext) var tracking_context = tracking_canvas.getContext('2d');
+
+    function getColor(_color) {
+        let color;
+        switch(_color)
+        {
+            case 1:  color = '#800'; break; /* Dark Red */
+            case 2:  color = '#f00'; break; /* Red */
+            case 3:  color = '#080'; break; /* Dark Green */
+            case 4:  color = '#0f0'; break; /* Green */
+            case 5:  color = '#008'; break; /* Dark Blue */
+            case 6:  color = '#00f'; break; /* Blue */
+            case 7:  color = '#888'; break; /* Grey */
+            case 8:  color = '#fff'; break; /* White */
+            case 9:  color = '#880'; break; /* Dark Yellow */
+            case 10: color = '#ff0'; break; /* Yellow */
+            default: color = '#fff'; break; /* White */
+        }
+        return color;
+    }
+
+    /* We'll use this to draw the vertical lines on the screen for our raycaster */
+    function drawLine(ctx, begin, end, stroke = 'black', width = 1) {
+        if (stroke) {
+            ctx.strokeStyle = stroke;
+        }
+
+        if (width) {
+            ctx.lineWidth = width;
+        }
+
+        ctx.beginPath();
+        ctx.moveTo(...begin);
+        ctx.lineTo(...end);
+        ctx.stroke();
+    }
+
+    /* A useful function to calculate total distance given x and y distances */
+    function calcDistance(x, y) {
+        return Math.sqrt(x*x + y*y);
+    }
+
+    /* The main function called every frame that iterates left to right
+       on the screen casting rays into the world and drawing vertical lines
+       depending on their distance from the player
+    */
+    function onNewFrame(fElapsedTime) {
+
+        /* Clear Screen */
+        context.clearRect(0, 0, canvas.width, canvas.height);
+        tracking_context.clearRect(0, 0, tracking_canvas.width, tracking_canvas.height);
+
+        /* Draw Map on Tracking Canvas */
+        for (let i = 0; i<24; i++) {
+            for (let j = 0; j < 24; j++) {
+                tracking_context.beginPath();
+                tracking_context.lineWidth = "2";
+                tracking_context.fillStyle = getColor(worldMap[i][j] * 2);
+                tracking_context.strokeStyle = '#666';
+                if (worldMap[i][j] == 0) {
+                    tracking_context.fillStyle = 'black';
+                }
+                tracking_context.fillRect(tSegmentSize*i, tSegmentSize*j, tSegmentSize*(i+1), tSegmentSize*(j+1));
+                tracking_context.strokeRect(tSegmentSize*i, tSegmentSize*j, tSegmentSize*(i+1), tSegmentSize*(j+1));
+                tracking_context.stroke();
+                tracking_context.closePath();
+            }
+        }
+
+        let w = screenWidth;
+        let h = screenHeight;
+
+        /* Reduce player angle to 0 <= theta <= 2*PI */
+        if (Math.abs(playerAngle) > 2*Math.PI) {
+            playerAngle %= 2*Math.PI;
+        }
+        if (playerAngle < 0) {
+            playerAngle = (2*Math.PI + playerAngle);
+        }
+
+        /* Draw Rays from left to right */
+        for (let x = 0; x < w; x++) {
+
+            /* Equal Spacing Between Rays as they go through our screen/visable plane,
+               Note: NOT equally spaced angles which would cause distortion
+            */
+            let pD = (w/2)/Math.tan(fov/2);
+            let rayAngle = playerAngle - Math.atan((w/2 - x)/ pD);
+
+            /* Reduce Ray angle to 0 <= theta <= 2*PI */
+            if (Math.abs(rayAngle) > 2*Math.PI) {
+                rayAngle %= 2*Math.PI;
+            }
+            if (rayAngle < 0) {
+                rayAngle = (2*Math.PI + rayAngle);
+            }
+
+            /* Determine which quadrant (1 through 4 on XY Plot) the current
+               ray being cast is in for convenience later
+            */
+            let quadrant;
+            let positiveX = Math.cos(rayAngle) >= 0;
+            let positiveY = Math.sin(rayAngle) >= 0;
+
+            if      ( positiveX &&  positiveY ) quadrant = 1;
+            else if (!positiveX &&  positiveY ) quadrant = 2;
+            else if (!positiveX && !positiveY ) quadrant = 3;
+            else if ( positiveX && !positiveY ) quadrant = 4;
+
+            let adjustedRayAngle; // Angle off of Vertical
+            let remainderX;       // Remainder in X until we hit the next vertical line
+            let remainderY;       // Remainder in Y until we hit the next horizontal line
+            switch (quadrant) {
+                case 1:
+                    adjustedRayAngle = (Math.PI/2) - rayAngle;
+                    remainderX = Math.floor(posX) + 1 - posX;
+                    remainderY = Math.floor(posY) + 1 - posY;
+                    break;
+                case 2: 
+                    adjustedRayAngle = rayAngle - (Math.PI/2);
+                    remainderX = posX - Math.floor(posX);
+                    remainderY = Math.floor(posY) + 1 - posY;
+                    break;
+                case 3: 
+                    adjustedRayAngle = (3*Math.PI/2) - rayAngle;
+                    remainderX = posX - Math.floor(posX);
+                    remainderY = posY - Math.floor(posY);
+                    break;
+                case 4: 
+                    adjustedRayAngle = rayAngle - (3*Math.PI/2);
+                    remainderX = Math.floor(posX) + 1 - posX;
+                    remainderY = posY - Math.floor(posY);
+                    break;
+                default:
+                    throw Error("Error processing ray angle!")
+            }
+
+            /* mapX and mapY translate to the worldMap array for determining
+               wall type at a given set of coordinates that rays are cast to,
+               side is the horizontal side (side = 0) or vertical side (side = 1)
+               of a wall
+            */
+            let mapX;
+            let mapY;
+            let side;
+
+            /* coordX and coordY are the current set of coordinates we are checking to see if
+               there is a wall, vertChack and horCheck are relative coordinates to our last check,
+               we'll set addToX and addToY to which ever one is closer to the last check
+            */
+            let vertCheck = {x: null, y: null};
+            let horCheck  = {x: null, y: null};
+            let coordX = posX;
+            let coordY = posY;
+            let addToX;
+            let addToY;
+
+            let distToWall;
+            let rayHitWall = false;
+
+            let i=0;
+            while (!rayHitWall) {
+
+                /* Get Distance to the next Vertical and Horizontal Line from the current one */
+                let coordXRemainder = (Math.floor(coordX) - coordX);
+                let coordYRemainder = (Math.floor(coordY) - coordY);
+                let tanAngle = Math.tan(adjustedRayAngle);
+
+                let initial_signs;        /* Initial Direction we check in based on quadrant  */
+                let to_add;               /* +0/+1 to coordXRemainder/Y depending on quadrant */
+                let side_0_signs;         /* Direction we check next in for horizontal walls  */
+                let side_1_signs;         /* Direction we check next in for vertical walls    */
+
+                switch (quadrant) {
+                    case 1: 
+                        initial_signs = [1, 1, 1, 1];
+                        to_add = [1, 1];
+                        side_0_signs = [1, 1, 1, 1];
+                        side_1_signs = [1, 1, 1, 1];
+                        break;
+                    case 2: 
+                        initial_signs = [-1, 1, -1, 1];
+                        to_add = [0, 1];
+                        side_0_signs = [-1, 1, 1, -1];
+                        side_1_signs = [-1, 1, -1, 1];
+                        break;
+                    case 3: 
+                        initial_signs = [-1, -1, -1, -1];
+                        to_add = [0, 0];
+                        side_0_signs = [-1, -1, 1, 1];
+                        side_1_signs = [1, 1, -1, -1];
+                        break;
+                    case 4: 
+                        initial_signs = [1, -1, 1, -1];
+                        to_add = [1, 0];
+                        side_0_signs = [1, -1, 1, -1];
+                        side_1_signs = [-1, 1, 1, -1];
+                        break;
+                }
+
+                /* First Check at nearest horizontal/vertical lines */
+                if (i == 0) {
+                    horCheck.x  = initial_signs[0]*remainderY*tanAngle;
+                    horCheck.y  = initial_signs[1]*remainderY;
+                    vertCheck.x = initial_signs[2]*remainderX;
+                    vertCheck.y = initial_signs[3]*remainderX/tanAngle;
+                } else {         /* Subsequent checks at next lines */
+                    if (side == 0) {
+                        horCheck.x  = side_0_signs[0]*tanAngle;
+                        horCheck.y  = side_0_signs[1]*1;
+                        vertCheck.x = side_0_signs[2]*(coordXRemainder + to_add[0]);
+                        vertCheck.y = side_0_signs[3]*(coordXRemainder + to_add[0])/tanAngle;
+                    } else if (side == 1) {
+                        horCheck.x  = side_1_signs[0]*(coordYRemainder + to_add[1])*tanAngle;
+                        horCheck.y  = side_1_signs[1]*(coordYRemainder + to_add[1]);
+                        vertCheck.x = side_1_signs[2]*1;
+                        vertCheck.y = side_1_signs[3]*1/tanAngle;
+                    }
+                }
+
+                /* Choose the Smaller distance and make note of whether it is 
+                   horizontal (side = 0) or vertical (side = 1) for lighting
+                   later on 
+                */
+                if (calcDistance(horCheck.x, horCheck.y) <= calcDistance(vertCheck.x, vertCheck.y)) {
+                    addToX = horCheck.x;
+                    addToY = horCheck.y;
+                    side = 0;
+                } else {
+                    addToX = vertCheck.x;
+                    addToY = vertCheck.y;
+                    side = 1;
+                }
+                
+                /* Rendering fix for when exactly on X and Y
+                   integer map coordinates
+                */
+                if (quadrant == 3) {
+                    if (addToX == 0 || isNaN(addToX)) {
+                        addToX = 1e-6;
+                    }
+                    if (addToY == 0 || isNaN(addToY)) {
+                        addToY = 1e-6;
+                    }
+                }
+
+                /* Draw ray segment on tacking canvas */
+                if (x == 0 || x == w-1 || x % 80 == 0) {
+                    drawLine(tracking_context, 
+                        [coordX*tSegmentSize, coordY*tSegmentSize], 
+                        [(coordX+addToX)*tSegmentSize, (coordY+addToY)*tSegmentSize], 'yellow', 1);
+                        tracking_context.beginPath();
+                        tracking_context.arc((coordX+addToX)*tSegmentSize, (coordY+addToY)*tSegmentSize, 2, 0, 2*Math.PI);
+                        tracking_context.strokeStyle = 'yellow';
+                        tracking_context.stroke();
+                }
+                
+                /* Add the smaller distance (nearest possible wall) to our current
+                   coords, to test the next possible set of coordinates where
+                   our ray might hit a wall
+                */
+                coordX += addToX;
+                coordY += addToY;
+
+                /* Check if ray hit wall */
+                let modifierX = 0;
+                let modifierY = 0;
+                if (quadrant == 2 && side == 1) modifierX = -1; // worldMap walls have length 1
+                if (quadrant == 3 && side == 0) modifierY = -1;
+                if (quadrant == 3 && side == 1) modifierX = -1;
+                if (quadrant == 4 && side == 0) modifierY = -1;
+                if (worldMap[Math.floor(coordX)+modifierX][Math.floor(coordY)+modifierY] != 0) {
+                    mapX = Math.floor(coordX)+modifierX;
+                    mapY = Math.floor(coordY)+modifierY;
+                    rayHitWall = true;
+                }
+                i++;
+            }
+
+            /* Distance to Wall */
+            distToWall = calcDistance(coordX-posX, coordY-posY);
+
+            /* Fisheye Correction */
+            correctedDist = distToWall * Math.cos(rayAngle - playerAngle);
+
+            /* Calculate the height of the line to draw on screen 
+               based on it's distance away from the player 
+            */
+            let lineHeight = Math.floor(h / correctedDist);
+
+            /* Calculate lowest and highest pixels in vertical line */
+            let drawStart = Math.floor(-lineHeight / 2 + h / 2);
+            if (drawStart < 0) { drawStart = 0 };
+            let drawEnd = Math.floor(lineHeight / 2 + h / 2);
+            if (drawEnd >= h) { drawEnd = h - 1 };
+
+            /* Select wall color from map */
+            let color = getColor(worldMap[mapX][mapY] * 2);
+
+            /* Set lighting differently on different sides of the wall */
+            if (side == 1) { color = getColor(worldMap[mapX][mapY] * 2 - 1) }
+
+            /* Draw Vertical Line */
+            drawLine(context, [x, drawStart], [x, drawEnd], color, 1);
+        }
+
+        /* Draw Player on Tracker */
+        tracking_context.beginPath();
+        tracking_context.arc(posX*tSegmentSize, posY*tSegmentSize, 10, 0, 2*Math.PI);
+        tracking_context.strokeStyle = 'orange';
+        tracking_context.stroke();
+        tracking_context.fillStyle = 'orange';
+        tracking_context.fill();
+        drawLine(tracking_context, 
+            [posX*tSegmentSize, posY*tSegmentSize], 
+            [posX*tSegmentSize+10*Math.cos(playerAngle), posY*tSegmentSize+10*Math.sin(playerAngle)], 
+            'black', 1);
+
+        /* Change player position depending on WASD input and add collision detection with walls */
+        let moveSpeed = fElapsedTime * 5.0; 
+        let rotSpeed = fElapsedTime * 3.0; 
+
+        /* W */
+        if (pressedKeys["87"]) {
+            if (worldMap[Math.floor(posX + Math.cos(playerAngle) * moveSpeed)][Math.floor(posY)] == false) {
+                posX += moveSpeed * Math.cos(playerAngle); }
+            if (worldMap[Math.floor(posX)][Math.floor(posY + Math.sin(playerAngle) * moveSpeed)] == false) {
+                posY += moveSpeed * Math.sin(playerAngle); }
+        }
+
+        /* S */
+        if (pressedKeys["83"]) {
+            if (worldMap[Math.floor(posX - Math.cos(playerAngle) * moveSpeed)][Math.floor(posY)] == false) {
+                posX -= moveSpeed * Math.cos(playerAngle); }
+            if (worldMap[Math.floor(posX)][Math.floor(posY - Math.sin(playerAngle) * moveSpeed)] == false) {
+                posY -= moveSpeed * Math.sin(playerAngle); }
+        }
+
+        /* A */
+        if (pressedKeys["65"]) {
+            playerAngle -= rotSpeed;
+        }
+
+        /* D */
+        if (pressedKeys["68"]) {
+            playerAngle += rotSpeed;
+        }
+    }
+
+    /* Once the DOM is loaded call onNewFrame with an interval to set the FPS */
+    document.addEventListener("DOMContentLoaded", function(event) {
+        let FPS = 30;
+        let interval = 1 / FPS;
+        setInterval(function() {
+            onNewFrame(interval)
+        }, interval * 1000)
+    })
+</script>
